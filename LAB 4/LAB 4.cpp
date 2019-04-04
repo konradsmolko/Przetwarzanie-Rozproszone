@@ -25,7 +25,7 @@ int main()
 		{
 			threads.push_back(tmp);
 			cout << "Watek #" << i << " utworzony." << endl;
-			if (i % 100000 == 0 && i != 0)
+			if (i % 10000 == 0 && i != 0)
 			{
 				cout << "Kontynuować?" << endl << "y = tak" << endl;
 				cin >> c;
@@ -34,21 +34,11 @@ int main()
 					for (HANDLE t : threads)
 					{
 						TerminateThread(t, 0);
+						cout << "Terminating thread #" << i << "." << endl;
+						i--;
 					}
 					break;
 				}
-			}
-			if (i >= 200000)
-			{
-				cout << "Nie pozwolę utworzyć więcej wątków - przy 260k mój komputer się zawiesił." << endl;
-				system("pause");
-				for (HANDLE t : threads)
-				{
-					TerminateThread(t, 0);
-					cout << "Terminating thread #" << i << "." << endl;
-					i--;
-				}
-				break;
 			}
 		}
 		else
