@@ -20,7 +20,7 @@ int main()
 	for(int i = 0; ; i++)
 	{
 		char c;
-		HANDLE tmp = CreateThread(NULL, 8, theOtherDoNothing, NULL, CREATE_SUSPENDED, NULL);
+		HANDLE tmp = CreateThread(NULL, 0, theOtherDoNothing, NULL, CREATE_SUSPENDED, NULL);
 		if (tmp != NULL)
 		{
 			threads.push_back(tmp);
