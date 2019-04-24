@@ -1,3 +1,2 @@
 ﻿  LAB 4.cpp
-  LAB 4.vcxproj -> D:\160698\Rozproch\Debug\LAB 4.exe
-  LAB 4.vcxproj -> D:\160698\Rozproch\Debug\LAB 4.pdb (Partial PDB)
+c:\program files (x86)\microsoft visual studio\2017\enterprise\vc\tools\msvc\14.16.27023\include\crtdefs.h(10): fatal error C1083: Nie można otworzyć pliku dołącz: 'corecrt.h': No such file or directory

