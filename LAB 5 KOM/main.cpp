@@ -4,6 +4,7 @@
 #define REQUEST_NUMBER	0xDEAD
 #define POST_NUMBER		0xBEEF
 #define MAXL			26
+#define MY_BN_CLICKED	1001
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow);
 bool init(HINSTANCE hInstance);
@@ -19,8 +20,6 @@ LPSTR bankAccount;
 HWND hwndThis;
 UINT messageCode;
 bool bAset;
-
-// TODO: set up box and button for setting bank account number
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {
@@ -115,18 +114,19 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 			PostNumber();
 			break;
 		}
-	}
+	} else 
 	switch (msg)
 	{
 	case WM_COMMAND:
 		switch (wParam)
 		{
-		case BM_CLICK:
+		case BN_CLICKED:
 			bAset = false;
 			break;
 		default:
 			break;
 		}
+		break;
 	case WM_CLOSE:
 		DestroyWindow(hwnd);
 		break;
@@ -141,13 +141,17 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
 void PostNumber()
 {
-	HGLOBAL hGlobalMem = GlobalAlloc(GHND, sizeof(bankAccount));
+	HGLOBAL hGlobalMem = GlobalAlloc(GHND, sizeof(LPSTR)*(MAXL+1));
 	if (hGlobalMem != NULL)
 	{
-		LPSTR lpGlobalMem = LPSTR(GlobalLock(hGlobalMem));
+		/*LPSTR lpGlobalMem = LPSTR(GlobalLock(hGlobalMem));
 		memcpy(lpGlobalMem, bankAccount, MAXL + 1);
 		GlobalUnlock(hGlobalMem);
-		PostMessage(HWND_BROADCAST, messageCode, POST_NUMBER, LONG_PTR(hGlobalMem));
+		PostMessage(HWND_BROADCAST, messageCode, POST_NUMBER, LONG_PTR(hGlobalMem));*/
+		LPSTR lpGlobalMem = LPSTR(GlobalLock(hGlobalMem));
+		memcpy(lpGlobalMem, bankAccount, MAXL + 1);
+		//GlobalUnlock(hGlobalMem);
+		PostMessage(HWND_BROADCAST, messageCode, POST_NUMBER, LONG_PTR(lpGlobalMem));
 	}
 }
 
@@ -164,31 +168,39 @@ INT_PTR CALLBACK DialogProc(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 			NULL
 		);
 		break;
-	case EN_CHANGE:
+	/*case EN_CHANGE:
 		SendDlgItemMessage(
 			hDlg,
 			IDC_BUTTON1,
 			WM_ENABLE,
 			TRUE,
-			NULL
+			TRUE
 		);
-		break;
-	case BN_CLICKED:
-		bankAccount[0] = 0;
-		bankAccount[1] = MAXL;
-		SendDlgItemMessage(
-			hDlg,
-			IDC_EDIT1,
-			EM_GETLINE,
-			NULL,
-			LPARAM(bankAccount)
-		);
-		if (strlen(bankAccount) == MAXL)
+		break;*/
+	case WM_COMMAND:
+		switch (wParam)
 		{
-			bAset = true;
-			EndDialog(hDlg, TRUE);
+		case MY_BN_CLICKED:
+			bankAccount[0] = 0;
+			bankAccount[1] = MAXL;
+			SendDlgItemMessage(
+				hDlg,
+				IDC_EDIT1,
+				EM_GETLINE,
+				NULL,
+				LPARAM(bankAccount)
+			);
+			if (strlen(bankAccount) == MAXL)
+			{
+				bAset = true;
+				EndDialog(hDlg, TRUE);
+			}
+			break;
+		default:
+			break;
 		}
 		break;
+	
 	default:
 		return DefWindowProc(hDlg, msg, wParam, lParam);
 	}
