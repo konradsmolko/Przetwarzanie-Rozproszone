@@ -1,2 +1,3 @@
 ﻿  LAB 4.cpp
-c:\program files (x86)\microsoft visual studio\2017\enterprise\vc\tools\msvc\14.16.27023\include\crtdefs.h(10): fatal error C1083: Nie można otworzyć pliku dołącz: 'corecrt.h': No such file or directory
+c:\program files (x86)\windows kits\8.1\include\um\combaseapi.h(229): error C2760: błąd składniowy: nieoczekiwany token „identyfikator”, oczekiwano: „specyfikator typu”
+c:\users\vuks\source\repos\przetwarzanie rozproszone\lab 4\lab 4.cpp(31): warning C4566: znak przedstawiony przez nazwę zawierającą znaki uniwersalne "\u0107" nie może być przedstawiony w bieżącej stronie kodowej (1252)

