@@ -30,9 +30,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 	while (GetMessage(&msg, NULL, 0, 0) > 0)
 	{
-		TranslateMessage(&msg);
-		DispatchMessage(&msg);
-
 		if (!bAset)
 			DialogBox(
 				hInstance,
@@ -40,6 +37,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 				hwndThis,
 				DialogProc
 			);
+		TranslateMessage(&msg);
+		DispatchMessage(&msg);
 	}
 	return 0;
 }
@@ -84,7 +83,7 @@ bool init(HINSTANCE hInstance)
 
 	HWND hwndButton = CreateWindow(
 		"BUTTON",	// Predefined class; Unicode assumed 
-		"Enter a new bank account number", // Button text 
+		"Podaj nowy numer konta bankowego", // Button text 
 		WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON, // Styles 
 		10,         // x position 
 		10,         // y position 

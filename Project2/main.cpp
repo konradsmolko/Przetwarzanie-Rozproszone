@@ -30,9 +30,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 	while (GetMessage(&msg, NULL, 0, 0) > 0)
 	{
-		TranslateMessage(&msg);
-		DispatchMessage(&msg);
-
 		time(&current);
 		double diff = difftime(current, start); // różnica czasu w sekundach
 		if (diff >= 10.0)
@@ -41,6 +38,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 			PostMessage(HWND_BROADCAST, messageCode, REQUEST_NUMBER, 0);
 			time(&start);
 		}
+		TranslateMessage(&msg);
+		DispatchMessage(&msg);
 	}
 	return 0;
 }
