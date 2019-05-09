@@ -7,13 +7,10 @@
 #include <ws2tcpip.h>
 #include <iphlpapi.h>
 #include <stdlib.h>
+#pragma comment(lib, "Ws2_32.lib")
 
 #include "resource2.h"
 
-#pragma comment(lib, "Ws2_32.lib")
-
-#define REQUEST_NUMBER	0xDEAD
-#define POST_NUMBER		0xBEEF
 #define MAXL			26
 #define MY_BN_CLICKED	1001
 #define DEFAULT_PORT	"27015"
@@ -36,13 +33,16 @@ bool bAset;
 char sockbuf[DEAFULT_BUFLEN];
 
 SOCKET ListenSocket, ClientSocket;
-struct addrinfo *result = NULL, *ptr = NULL, hints, saClient;
+struct addrinfo *result = NULL, *ptr = NULL, hints;// , saClient;
+struct sockaddr saClient;
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {
 	if (!init(hInstance)) return 1;
 	if (!init_winsock()) return 2;
 	int iSizeofSaClient = sizeof(saClient);
+	ClientSocket = INVALID_SOCKET;
+
 	MSG msg;
 
 	while (GetMessage(&msg, NULL, 0, 0) > 0)
@@ -56,9 +56,10 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 			);
 		TranslateMessage(&msg);
 		DispatchMessage(&msg);
-
-		ClientSocket = WSAAccept(ListenSocket, (SOCKADDR*)&saClient,
-			(LPINT)iSizeofSaClient, NULL, NULL);
+		if (ClientSocket == INVALID_SOCKET)
+			ClientSocket = WSAAccept(ListenSocket, NULL, NULL, NULL, NULL);
+		//ClientSocket = WSAAccept(ListenSocket, &saClient,
+		//	(LPINT)iSizeofSaClient, NULL, NULL);
 		
 		if (ClientSocket != INVALID_SOCKET && bAset)
 		{
@@ -230,6 +231,7 @@ void HandleClient()
 	}
 
 	closesocket(ClientSocket);
+	ClientSocket = INVALID_SOCKET;
 }
 
 INT_PTR CALLBACK DialogProc(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam)
