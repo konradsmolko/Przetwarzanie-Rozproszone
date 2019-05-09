@@ -5,6 +5,8 @@
 #define REQUEST_NUMBER	0xDEAD
 #define POST_NUMBER		0xBEEF
 #define MAXL			26
+#define DEFAULT_PORT	"27015"
+#define DEAFULT_BUFLEN	512
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow);
 bool init(HINSTANCE hInstance);

