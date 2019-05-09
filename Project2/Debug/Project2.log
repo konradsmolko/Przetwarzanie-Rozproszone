@@ -1,3 +1,2 @@
 ﻿  main.cpp
-c:\users\vuks\source\repos\przetwarzanie rozproszone\project2\main.cpp(148): warning C4715: "init_winsock”: niewszystkie ścieżki kodu zwracają wartość
   Project2.vcxproj -> C:\Users\Vuks\source\repos\Przetwarzanie Rozproszone\Debug\LAB 5 MON.exe

