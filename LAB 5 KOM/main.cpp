@@ -6,9 +6,9 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <iphlpapi.h>
-#include <MSWSock.h>
 #include <stdlib.h>
-#pragma comment(lib, "Ws2_32.lib")
+#include <time.h>
+#pragma comment (lib, "Ws2_32.lib")
 
 #include "resource2.h"
 
@@ -16,6 +16,7 @@
 #define MY_BN_CLICKED	1001
 #define DEFAULT_PORT	"27015"
 #define DEAFULT_BUFLEN	512
+#define REQ_CHK_DELAY_S	1.0
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow);
 bool init(HINSTANCE hInstance);
@@ -34,17 +35,23 @@ bool bAset;
 char sockbuf[DEAFULT_BUFLEN];
 
 SOCKET ListenSocket, ClientSocket;
-struct addrinfo *result = NULL, *ptr = NULL, hints;// , saClient;
+struct addrinfo *result = NULL, *ptr = NULL, hints;
 struct sockaddr saClient;
+
+time_t start, current;
+TIMEVAL selectDelay;
+FD_SET read_fd;
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {
 	if (!init(hInstance)) return 1;
 	if (!init_winsock()) return 2;
-	int iSizeofSaClient = sizeof(saClient);
-	ClientSocket = INVALID_SOCKET;
 
+	int iSizeofSaClient = sizeof(saClient);
 	MSG msg;
+
+	FD_SET(ListenSocket, &read_fd);
+	ClientSocket = INVALID_SOCKET;
 
 	while (GetMessage(&msg, NULL, 0, 0) > 0)
 	{
@@ -55,18 +62,30 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 				hwndThis,
 				DialogProc
 			);
-		TranslateMessage(&msg);
-		DispatchMessage(&msg);
-		if (ClientSocket == INVALID_SOCKET)
+
+		time(&current);
+		double diff = difftime(current, start); // różnica czasu w sekundach
+		if (diff >= REQ_CHK_DELAY_S && ClientSocket == INVALID_SOCKET)
 		{
 			int szSaCl = sizeof(saClient);
-			// Blokuje KOM, nie da się zmienić numeru.
-			ClientSocket = accept(ListenSocket, &saClient, &szSaCl);
+			read_fd.fd_count = 1;
+			int a;
+			int iSelectRet = select(NULL, &read_fd, NULL, NULL, &selectDelay);
+			if (iSelectRet == SOCKET_ERROR)
+				a = WSAGetLastError();
+			if (iSelectRet > 0)
+			{
+				ClientSocket = accept(ListenSocket, &saClient, &szSaCl);
+				if (ClientSocket != INVALID_SOCKET && bAset)
+				{
+					HandleClient();
+				}
+			}
 		}
-		if (ClientSocket != INVALID_SOCKET && bAset)
-		{
-			HandleClient();
-		}
+		time(&start);
+
+		TranslateMessage(&msg);
+		DispatchMessage(&msg);
 	}
 
 	closesocket(ListenSocket);
@@ -128,6 +147,10 @@ bool init(HINSTANCE hInstance)
 	bankAccount = (LPSTR)calloc(MAXL + 1, sizeof(CHAR));
 	bAset = false;
 
+	selectDelay.tv_sec = 1;
+	selectDelay.tv_usec = 0;
+
+	time(&start);
 	return true;
 }
 
@@ -210,7 +233,10 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 void HandleClient()
 {
 	int sockbuflen = DEAFULT_BUFLEN;
-	int iResult = recv(ClientSocket, sockbuf, sockbuflen, 0);
+	ZeroMemory(sockbuf, sockbuflen);
+	int iResult;
+
+	iResult = recv(ClientSocket, sockbuf, sockbuflen, 0);
 	if (iResult == SOCKET_ERROR && WSAGetLastError() == WSAEMSGSIZE) throw;
 	if (iResult > 0)
 	{
